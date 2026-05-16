@@ -321,6 +321,7 @@ python train_full_sft.py --from_resume 1
 ```bash
 cd trainer && python train_pretrain.py
 ```
+> 如需启用门控注意力，可追加参数：`--attn_gate 1`（可选 `--attn_gate_type elementwise|headwise`，默认 `elementwise`）
 
 > 训练后，将得到 `out/pretrain_*.pth` 作为输出权重（其中 `*` 为模型 dimension，默认为 `768`）
 
@@ -329,6 +330,7 @@ cd trainer && python train_pretrain.py
 ```bash
 cd trainer && python train_full_sft.py
 ```
+> 如需启用门控注意力，可追加参数：`--attn_gate 1`（可选 `--attn_gate_type elementwise|headwise`，默认 `elementwise`）
 
 > 训练后，将得到 `out/full_sft_*.pth` 作为输出权重（其中 `full` 表示全参数微调）
 

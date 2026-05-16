@@ -320,6 +320,7 @@ python train_full_sft.py --from_resume 1
 ```bash
 cd trainer && python train_pretrain.py
 ```
+> To enable gated attention, append: `--attn_gate 1` (optional `--attn_gate_type elementwise|headwise`, default is `elementwise`).
 
 > After training, `out/pretrain_*.pth` will be produced as output weights (where `*` is the model dimension, default `768`)
 
@@ -328,6 +329,7 @@ cd trainer && python train_pretrain.py
 ```bash
 cd trainer && python train_full_sft.py
 ```
+> To enable gated attention, append: `--attn_gate 1` (optional `--attn_gate_type elementwise|headwise`, default is `elementwise`).
 
 > After training, `out/full_sft_*.pth` will be produced as output weights (where `full` indicates full-parameter fine-tuning)
 

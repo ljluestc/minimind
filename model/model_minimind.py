@@ -29,6 +29,10 @@ class MiniMindConfig(PretrainedConfig):
         self.rope_theta = kwargs.get("rope_theta", 1e6)
         self.tie_word_embeddings = kwargs.get("tie_word_embeddings", True)
         self.inference_rope_scaling = kwargs.get("inference_rope_scaling", False)
+        self.attn_gate = bool(kwargs.get("attn_gate", False))
+        self.attn_gate_mode = kwargs.get("attn_gate_mode", kwargs.get("attn_gate_type", "elementwise"))
+        if self.attn_gate_mode not in {"elementwise", "headwise"}:
+            raise ValueError(f"Invalid attn_gate_mode: {self.attn_gate_mode}, expected 'elementwise' or 'headwise'")
         self.rope_scaling = {
             "beta_fast": 32,
             "beta_slow": 1,
@@ -107,6 +111,13 @@ class Attention(nn.Module):
         self.resid_dropout = nn.Dropout(config.dropout)
         self.dropout = config.dropout
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention') and config.flash_attn
+        self.use_attn_gate = bool(config.attn_gate)
+        self.attn_gate_mode = config.attn_gate_mode
+        if self.use_attn_gate:
+            gate_shape = (self.n_local_heads, self.head_dim) if self.attn_gate_mode == "elementwise" else (self.n_local_heads,)
+            self.attn_gate_param = nn.Parameter(torch.zeros(gate_shape))
+        else:
+            self.register_parameter("attn_gate_param", None)
 
     def forward(self, x, position_embeddings, past_key_value=None, use_cache=False, attention_mask=None):
         bsz, seq_len, _ = x.shape
@@ -129,6 +140,12 @@ class Attention(nn.Module):
             if self.is_causal: scores[:, :, :, -seq_len:] += torch.full((seq_len, seq_len), float("-inf"), device=scores.device).triu(1)
             if attention_mask is not None: scores += (1.0 - attention_mask.unsqueeze(1).unsqueeze(2)) * -1e9
             output = self.attn_dropout(F.softmax(scores.float(), dim=-1).type_as(xq)) @ xv
+        if self.attn_gate_param is not None:
+            if self.attn_gate_mode == "headwise":
+                gate = 2.0 * torch.sigmoid(self.attn_gate_param).view(1, self.n_local_heads, 1, 1)
+            else:
+                gate = 2.0 * torch.sigmoid(self.attn_gate_param).view(1, self.n_local_heads, 1, self.head_dim)
+            output = output * gate.to(output.dtype)
         output = output.transpose(1, 2).reshape(bsz, seq_len, -1)
         output = self.resid_dropout(self.o_proj(output))
         return output, past_kv
